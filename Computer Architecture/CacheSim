@@ -1,0 +1,353 @@
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<math.h>
+
+int cacheSize =0;
+char* cacheAssos;
+char* cachePolicy;
+int blockSize =0;
+int assocCount =0;
+char* traceFilename;
+int numSets = 0; 
+int numBlocks = 0;
+int tagBits=0;
+int blockBits=0;
+int setBits=0;
+int memBits =48;
+int offsetBits=0;
+char readWrite;
+struct block** cache;
+
+
+int hitCount, missCount, readCount, writeCount =0;
+//
+
+    int reads = 0;
+    int writes = 0;
+    int hits = 0;
+    int misses = 0;
+    int found = 0;
+    int added = 0;
+//
+
+struct block 
+{
+    int valid;
+    unsigned long long int tag; 
+    unsigned int index;
+};
+
+struct block validBlock;
+
+
+void printGlobal()
+{
+	printf("cache size = %d\n", cacheSize);
+	printf("cache assos = %s\n", cacheAssos);
+	printf("cache policy = %s\n", cachePolicy);
+	printf("block size = %d\n", blockSize);
+	printf("filename= %s\n", traceFilename);
+	printf("assos count (n) = %d\n", assocCount);
+	printf("numSets = %d\n", numSets);
+	printf("number of blocks/set = %d\n", numBlocks);
+	printf("number of set Bits = %d\n", setBits);
+	printf("number of block bits = %d\n", blockBits);
+	printf("number of tag bits = %d\n", tagBits);
+	printf("hits: %d\n", hitCount);
+	printf("misses : %d\n", missCount);
+	printf("reads: %d\n", readCount);
+	printf("writes: %d\n\n", writeCount);
+}
+//added now below
+int isPower2 (int x)
+{
+	int true = 1;
+	int false= 0;
+	if (x==0)
+	{
+		return false;
+	}
+	while (x != 1)
+	{
+		if (x%2 != false)
+		{
+			return false;
+		}
+		x = x/2;
+	}
+	return true;
+	//return (x != 0) && ((x & (x - 1)) == 0);
+	
+}
+
+
+int readParams(int argc, char** argv)
+{
+	
+
+	if (argc != 6)
+	{
+		//printf("here2");
+		printf("error");
+		exit(0);
+	}
+	cacheSize = atoi (argv[1]);
+	cacheAssos = argv[2];
+	cachePolicy = argv[3];
+	blockSize = atoi (argv[4]);
+	traceFilename = argv[5];
+
+	if (cacheSize == 0 || blockSize == 0)
+	{
+		//printf("here1");
+		printf("error");
+		exit(0);
+	}
+
+	if (cacheSize < blockSize)
+	{
+		printf("error");
+		return (0);
+	//added now
+	}
+	//added now below
+	if (isPower2(cacheSize) == 0 || isPower2(blockSize) == 0)
+	{
+		//printf("in is power");
+		printf("error");
+		exit(0);
+	}
+        
+        
+	if (!(strcmp(cacheAssos,"direct") == 0 || strcmp(cacheAssos,"assoc") == 0 || strncmp(cacheAssos,"assoc:", 6) == 0 || strcmp(cachePolicy,"lru")==0))
+	{
+		//printf("here6");
+		printf("error");
+		exit(0);
+	}
+	if (strncmp(cacheAssos,"assoc:", 6) == 0)
+	{
+		//int count=0;
+		assocCount = atoi (&cacheAssos[6]);
+	}
+       
+	return (0);
+}
+
+int evaluateCacheParams()
+{
+	if (strcmp(cacheAssos, "direct") == 0)
+	{                
+		numBlocks = 1;                
+		numSets = cacheSize / blockSize ;
+		setBits = (int)log2(numSets);
+		blockBits = (int)log2(numBlocks);
+		offsetBits =(int)log2(blockSize);
+		tagBits = memBits - setBits - blockBits- offsetBits;
+		return(0);
+	}
+	else if (strcmp(cacheAssos, "assoc") ==0)
+	{
+		numBlocks = cacheSize;
+		numSets = 1;
+		setBits = 1;
+		blockBits= 1;
+		blockSize=1;
+                offsetBits =(int)log2(blockSize);
+		tagBits = memBits - setBits - blockBits- offsetBits;
+		return(0);
+	}
+	else
+	{
+		//printf("block = %d, assoc = %d", blockSize, assocCount);
+		numSets = cacheSize/(blockSize * assocCount);
+		//printf("block = %d, assoc = %d", blockSize, assocCount);
+		numBlocks = assocCount;
+		setBits = log2(numSets);
+		blockBits = log2(numBlocks);
+                offsetBits =(int)log2(blockSize);
+		tagBits = memBits - setBits - blockBits- offsetBits;
+		return(0);
+	}
+
+}
+
+
+void readTraceFile(char* fname, int prefetchInd)
+{
+    unsigned long long memAddress=0;
+    char temp[100];
+    FILE *inputfile = fopen(fname, "r");
+   
+    int i = 0;
+    while(fscanf(inputfile,"%s %c %llx\n", temp, &readWrite, &memAddress)==3)
+    {        
+        int blockPrefetch = 0;
+        struct block current;
+        
+        unsigned int findIndex = (memAddress>>offsetBits)%numSets;
+        unsigned long long int findTag = memAddress>>(offsetBits+setBits);
+        current.tag = findTag;
+        current.index = findIndex;
+        current.valid = 1;
+       if(readWrite == 'W') 
+       {
+            writeCount++;
+        } 
+        for (i = 0; i < numBlocks; i++)
+        {
+            if(cache[findIndex][i].tag == findTag) 
+	    {
+                hitCount++;
+		int j = i;
+     
+                for(j=i;j<numBlocks-1;j++)
+                {
+                    cache[findIndex][j] = cache[findIndex][j+1];
+                }
+     
+                cache[findIndex][numBlocks-1] = current;
+     
+                added = 1;
+                found = 1;
+                break;
+            }
+        }   
+        
+       if(found == 0) 
+       {
+            readCount++;
+            missCount++;
+            blockPrefetch = 1;
+            for(i = 0; i < numBlocks-1; i++) 
+            {
+                    cache[findIndex][i] = cache[findIndex][i+1];
+                    added = 1;
+            }
+            cache[findIndex][numBlocks-1] = current;
+       }
+      
+          
+        found = 0;
+        added = 0;
+
+// Use Prefetch logic       
+//added cache size now
+       if (prefetchInd ==1 && blockPrefetch== 1 && (cacheSize > blockSize))
+       {
+             
+            findIndex = ((memAddress+blockSize)>>offsetBits)%numSets;
+            findTag = (memAddress+blockSize)>>(offsetBits+setBits);
+             current.tag = findTag;
+             current.index = findIndex;
+            current.valid = 1;
+            for (i = 0; i < numBlocks; i++)
+            {
+              if(cache[findIndex][i].tag == findTag) 
+	      {
+                found = 1;
+                break;
+              }
+            }    
+        
+            if(found == 0) 
+            {
+              readCount++;
+              for(i = 0; i < numBlocks-1; i++) 
+               {
+                    cache[findIndex][i] = cache[findIndex][i+1];
+                    added = 1;
+               }
+               cache[findIndex][numBlocks-1] = current;
+            }
+      
+          
+        found = 0;
+        added = 0;
+
+      }
+// end pre fetch
+    }
+    
+   fclose(inputfile);
+
+
+}
+int printResult(){
+printf("Memory reads: %d\n",readCount);
+printf("Memory writes: %d\n",writeCount);
+printf("Cache hits: %d\n", hitCount);
+printf("Cache misses: %d\n",missCount);
+return(0);
+}
+inline void initializeCache()
+{
+   
+
+    cache = (struct block**)malloc(numSets*sizeof(struct block*));
+    int i, j = 0;
+    for(i = 0; i < numSets; i++) 
+    {
+        cache[i] = (struct block*)malloc(numBlocks*sizeof(struct block));
+    }
+    
+    for(i = 0; i < numSets; i++) 
+    {
+        for(j = 0; j < numBlocks; j++) 
+        {
+            struct block defaultBlock ;
+            cache[i][j] =defaultBlock;
+            defaultBlock.valid = 0;
+        }
+     } 
+
+}
+int main(int argc, char** argv) 
+{
+
+
+    FILE *fp;
+    readParams(argc, argv);
+    evaluateCacheParams();
+    fp = fopen(argv[5], "r");
+    
+    
+    
+    //file check
+    if(fp == NULL) 
+    {
+	//printf("here123");
+        printf("error");
+        return(0);
+    }
+    
+    initializeCache();
+    //printGlobal();
+
+    readTraceFile(traceFilename,0);
+    printf("no-prefetch\n");
+    printResult();
+// reset globals
+    hitCount=0;
+    missCount=0;
+    readCount=0;
+    writeCount=0;
+    initializeCache();
+    readTraceFile(traceFilename,1);
+    printf("with-prefetch\n");
+    printResult();
+
+    int i;
+    //int j;
+    //added now int j part
+    for(i = 0; i < numSets; i++) 
+    {
+        free(cache[i]);
+    }
+    free(cache);
+    
+    fclose(fp);
+    
+    return 0;
+}
