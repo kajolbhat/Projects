@@ -77,7 +77,6 @@ int isPower2 (int x)
 		x = x/2;
 	}
 	return true;
-	//return (x != 0) && ((x & (x - 1)) == 0);
 	
 }
 
@@ -100,7 +99,6 @@ int readParams(int argc, char** argv)
 
 	if (cacheSize == 0 || blockSize == 0)
 	{
-		//printf("here1");
 		printf("error");
 		exit(0);
 	}
@@ -109,9 +107,7 @@ int readParams(int argc, char** argv)
 	{
 		printf("error");
 		return (0);
-	//added now
 	}
-	//added now below
 	if (isPower2(cacheSize) == 0 || isPower2(blockSize) == 0)
 	{
 		//printf("in is power");
@@ -339,8 +335,6 @@ int main(int argc, char** argv)
     printResult();
 
     int i;
-    //int j;
-    //added now int j part
     for(i = 0; i < numSets; i++) 
     {
         free(cache[i]);
