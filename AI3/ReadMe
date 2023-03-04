@@ -1,1 +1,3 @@
 This project uses an algorithm to have an agent with a given starting point find a target cell to destroy in a grid with different movement patterns depending on the terrain of the current square.
+
+The full description and writeup can be found in the pdf attached to this folder.
