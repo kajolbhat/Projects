@@ -1,0 +1,1 @@
+This project uses an agent to solve a Minesweeper game. The agent uses logical inference to know which tiles to open with an internal knowledge base that influences next steps.
