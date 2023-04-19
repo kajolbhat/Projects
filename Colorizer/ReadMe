@@ -1,0 +1,1 @@
+Given a grayscale image, this program generates a a colorized version of the picture using clustering algorithm that predicts the most probable color of each pixel.
